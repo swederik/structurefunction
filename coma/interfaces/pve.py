@@ -1,7 +1,7 @@
 from nipype.interfaces.matlab import MatlabCommand
 from nipype.interfaces.base import (
-    BaseInterface, BaseInterfaceInputSpec, traits, InputMultiPath,
-    OutputMultiPath, File, TraitedSpec, Directory, isdefined)
+    BaseInterface, BaseInterfaceInputSpec, traits,
+    OutputMultiPath, File, TraitedSpec)
 from nipype.utils.filemanip import split_filename
 import os
 import os.path as op
@@ -106,6 +106,7 @@ def fix_roi_values_freesurferLUT(roi_image, white_matter_file, csf_file, prob_th
     nb.save(csf_label_image, csf_label_file)
 
     hdr = image.get_header()
+
     # Experimental removal of WM hypointensities and non-WM hypointensities
     # 77  WM-hypointensities                      200 70  255 0
     # 78  Left-WM-hypointensities                 255 148 10  0
@@ -120,19 +121,37 @@ def fix_roi_values_freesurferLUT(roi_image, white_matter_file, csf_file, prob_th
     data[np.where(data == 81)] = 0
     data[np.where(data == 82)] = 0
 
-    unique = np.unique(data)
-    for uniq in list(unique):
-        if np.shape(np.where(data==uniq))[1] < 6:
-            print("%d has less than five voxels and will be ignored" % uniq)
-            data[np.where(data == uniq)] = 0
+    # Remove vessels
+    # 30  Left-vessel                             160 32  240 0
+    # 62  Right-vessel                            160 32  240 0
+    data[np.where(data == 30)] = 0
+    data[np.where(data == 62)] = 0
 
-    import ipdb
-    ipdb.set_trace()
+    # Remove unknown
+    # 1000    ctx-lh-unknown                      25  5   25  0
+    # 2000    ctx-rh-unknown                      25  5   25  0
+    data[np.where(data == 1000)] = 0
+    data[np.where(data == 2000)] = 0
+
+    # Remove optic chiasm
+    #85  Optic-Chiasm                            234 169 30  0
+    data[np.where(data == 85)] = 0
+
+    #192 Corpus_Callosum                         250 255 50  0
+    data[np.where(data == 192)] = 0
+
+    unique = np.unique(data)
+    thresh = 5
 
     data_uint8, remap_dict = prepare_for_uint8(data, ignore=range(0, 3))
     data_uint8 = data_uint8.astype(np.uint8)
     data_uint8[np.where(data == csf_default)] = csf_default
     data_uint8[np.where(data == white_matter_default)] = white_matter_default
+
+    for uniq in list(unique):
+        if np.shape(np.where(data_uint8 == uniq))[1] < thresh:
+            iflogger.info("%d has less than %d voxels and will be ignored" % (uniq, thresh))
+            data_uint8[np.where(data_uint8 == uniq)] = 0
 
     fixed = nb.Nifti1Image(
         dataobj=data_uint8, affine=image.get_affine(), header=hdr)
