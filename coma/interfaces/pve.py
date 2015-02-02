@@ -120,29 +120,6 @@ def fix_roi_values_freesurferLUT(roi_image, white_matter_file, csf_file, prob_th
     data[np.where(data == 81)] = 0
     data[np.where(data == 82)] = 0
 
-    unique = np.unique(data)
-    for uniq in list(unique):
-        if np.shape(np.where(data==uniq))[1] < 6:
-            print("%d has less than five voxels and will be ignored" % uniq)
-            data[np.where(data == uniq)] = 0
-
-    import ipdb
-    ipdb.set_trace()
-
-    # Experimental removal of WM hypointensities and non-WM hypointensities
-    # 77  WM-hypointensities                      200 70  255 0
-    # 78  Left-WM-hypointensities                 255 148 10  0
-    # 79  Right-WM-hypointensities                255 148 10  0
-    # 80  non-WM-hypointensities                  164 108 226 0
-    # 81  Left-non-WM-hypointensities             164 108 226 0
-    # 82  Right-non-WM-hypointensities            164 108 226 0    
-    data[np.where(data == 77)] = 0
-    data[np.where(data == 78)] = 0
-    data[np.where(data == 79)] = 0
-    data[np.where(data == 80)] = 0
-    data[np.where(data == 81)] = 0
-    data[np.where(data == 82)] = 0
-
     # Remove vessels
     # 30  Left-vessel                             160 32  240 0
     # 62  Right-vessel                            160 32  240 0
