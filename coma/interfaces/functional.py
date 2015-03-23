@@ -70,14 +70,14 @@ class RegionalValues(BaseInterface):
     def _run_interface(self, runtime):
         if isdefined(self.inputs.lookup_table):
             LUT_dict = get_names(self.inputs.lookup_table)
-                    
         if len(self.inputs.in_files) > 1:
             iflogger.info('Multiple input images detected')
             iflogger.info(len(self.inputs.in_files))
             in_files = self.inputs.in_files
         elif isdefined(self.inputs.in_file4d):
             iflogger.info('Single four-dimensional image selected')
-            in_files = nb.four_to_three(self.inputs.in_file4d)
+            in_file4d = nb.load(self.inputs.in_file4d)
+            in_files = nb.four_to_three(in_file4d)
         else:
             iflogger.info('Single functional image provided')
             in_files = self.inputs.in_files
