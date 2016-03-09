@@ -65,4 +65,5 @@ workflow.write_graph()
 workflow.config['execution'] = {'remove_unnecessary_outputs': 'false',
                                 'hash_method': 'timestamp'}
 workflow.run()
+#workflow.run(updatehash=True)
 #workflow.run(plugin='MultiProc', plugin_args={'n_procs' : 4})

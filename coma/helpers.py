@@ -1,25 +1,14 @@
+import os
 import os.path as op
-import gzip
 import nibabel as nb
 import numpy as np
 from nipype.utils.filemanip import split_filename
 
 
 def nifti_to_analyze(nii):
-    nifti = nb.load(nii)
-    if nii[-3:] == '.gz':
-        nif = gzip.open(nii, 'rb')
-    else:
-        nif = open(nii, 'rb')
-    hdr = nb.nifti1.Nifti1Header.from_fileobj(nif)
-
-    arr_hdr = nb.analyze.AnalyzeHeader.from_header(hdr)
-    arrb = hdr.raw_data_from_fileobj(nif)
-    img = nb.AnalyzeImage(
-        dataobj=arrb, affine=nifti.get_affine(), header=arr_hdr)
     _, name, _ = split_filename(nii)
-    nb.analyze.save(img, op.abspath(name + '.img'))
-    return op.abspath(name + '.img'), op.abspath(name + '.hdr')
+    os.system("dcm2nii -s y -f y -m n -g n -n n " + nii)
+    return op.abspath("f" + name + '.img'), op.abspath("f" + name + '.hdr')
 
 
 def analyze_to_nifti(img, ext='.nii.gz', affine=None):
@@ -57,7 +46,7 @@ def get_names(lookup_table):
     LUT_dict = {}
     with open(lookup_table) as LUT:
         for line in LUT:
-            if line[0] != "#" and line != "\r\n":
+            if line[0] != "#" and line != "\r\n" and line != "\n":
                 parse = line.split()
                 LUT_dict[int(parse[0])] = parse[1].replace(" ", "")
     return LUT_dict

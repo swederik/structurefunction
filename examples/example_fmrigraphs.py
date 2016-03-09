@@ -3,7 +3,7 @@ import nipype.interfaces.utility as util     # utility
 import os.path as op
 import nipype.interfaces.cmtk as cmtk
 import nipype.pipeline.engine as pe          # pypeline engine
-from nipype.workflows.rsfmri.coma.fmri_graphs import create_fmri_graphs, create_fmri_graph_grouping_workflow
+from coma.workflows.fmri_graphs import create_fmri_graphs, create_fmri_graph_grouping_workflow
 
 from coma.datasets import sample
 data_path = sample.data_path()
@@ -77,7 +77,8 @@ graph.connect([(funky, datasink, [("outputnode.correlation_cff", "@cff.correlati
 datasink.inputs.regexp_substitutions = [('_group_graphs_corr[\d]*/', '')]
 graph.connect([(infosource, datasink,[('subject_id','@subject_id')])])
 
-graph.run()
+#graph.run()
+graph.write_graph('png')
 #graph.run(plugin='MultiProc', plugin_args={'n_procs' : 3})
 
 #averaging = create_fmri_graph_grouping_workflow(data_dir, output_dir, 'averaging')

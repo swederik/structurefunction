@@ -48,7 +48,7 @@ def parse_pve_results(results_text_file):
     return out_data
 
 
-def fix_roi_values_freesurferLUT(roi_image, white_matter_file, csf_file, prob_thresh):    
+def fix_roi_values_freesurferLUT(roi_image, white_matter_file, csf_file, prob_thresh):
     from coma.helpers import wm_labels_only, csf_labels_only, prepare_for_uint8
     _, name, _ = split_filename(roi_image)
 
@@ -79,7 +79,8 @@ def fix_roi_values_freesurferLUT(roi_image, white_matter_file, csf_file, prob_th
     data[np.where(csf_labels > 0)] = csf_default
 
     # Be careful with the brackets here. & takes priority over comparisons
-    data[np.where((wm_data > prob_thresh) & (data == 0))] = white_matter_default
+    data[np.where((wm_data > prob_thresh) & (data == 0))
+         ] = white_matter_default
     data[np.where((csf_data > prob_thresh) & (data == 0))] = csf_default
 
     wm_labels[np.where(data == white_matter_default)] = 1
@@ -112,7 +113,7 @@ def fix_roi_values_freesurferLUT(roi_image, white_matter_file, csf_file, prob_th
     # 79  Right-WM-hypointensities                255 148 10  0
     # 80  non-WM-hypointensities                  164 108 226 0
     # 81  Left-non-WM-hypointensities             164 108 226 0
-    # 82  Right-non-WM-hypointensities            164 108 226 0    
+    # 82  Right-non-WM-hypointensities            164 108 226 0
     data[np.where(data == 77)] = 0
     data[np.where(data == 78)] = 0
     data[np.where(data == 79)] = 0
@@ -133,10 +134,10 @@ def fix_roi_values_freesurferLUT(roi_image, white_matter_file, csf_file, prob_th
     data[np.where(data == 2000)] = 0
 
     # Remove optic chiasm
-    #85  Optic-Chiasm                            234 169 30  0
+    # 85  Optic-Chiasm                            234 169 30  0
     data[np.where(data == 85)] = 0
 
-    #192 Corpus_Callosum                         250 255 50  0
+    # 192 Corpus_Callosum                         250 255 50  0
     data[np.where(data == 192)] = 0
 
     unique = np.unique(data)
@@ -149,7 +150,8 @@ def fix_roi_values_freesurferLUT(roi_image, white_matter_file, csf_file, prob_th
 
     for uniq in list(unique):
         if np.shape(np.where(data_uint8 == uniq))[1] < thresh:
-            iflogger.info("%d has less than %d voxels and will be ignored" % (uniq, thresh))
+            iflogger.info(
+                "%d has less than %d voxels and will be ignored" % (uniq, thresh))
             data_uint8[np.where(data_uint8 == uniq)] = 0
 
     fixed = nb.Nifti1Image(
@@ -160,7 +162,8 @@ def fix_roi_values_freesurferLUT(roi_image, white_matter_file, csf_file, prob_th
     nb.save(fixed, fixed_roi_image)
     return fixed_roi_image, wm_label_file, csf_label_file, remap_dict
 
-def fix_roi_values_noLUT(roi_image, gm_file, white_matter_file, csf_file, prob_thresh):
+
+def fix_roi_values_noLUT(roi_image, gm_file, white_matter_file, csf_file, prob_thresh=0.7):
     from coma.helpers import prepare_for_uint8
     _, name, _ = split_filename(roi_image)
 
@@ -177,17 +180,20 @@ def fix_roi_values_noLUT(roi_image, gm_file, white_matter_file, csf_file, prob_t
     image = nb.load(roi_image)
     data = image.get_data()
 
+    # Checks to make sure all images have the same dimensions
     assert(data.shape == gm_data.shape == wm_data.shape == csf_data.shape)
 
+    # Start all regions as 51 and above, make sure none are above 255
     data_uint8, remap_dict = prepare_for_uint8(data, ignore=[0])
     data_uint8 = data_uint8.astype(np.uint8)
-    data_uint8[np.where(data_uint8 == csf_default)] = csf_default
-    data_uint8[np.where(data_uint8 == white_matter_default)] = white_matter_default
 
     # Be careful with the brackets here. & takes priority over comparisons
-    data_uint8[np.where((wm_data > prob_thresh) & (data_uint8 == 0))] = white_matter_default
-    data_uint8[np.where((csf_data > prob_thresh) & (data_uint8 == 0))] = csf_default
+    data_uint8[
+        np.where((wm_data > prob_thresh) & (data_uint8 == 0))] = white_matter_default
+    data_uint8[
+        np.where((csf_data > prob_thresh) & (data_uint8 == 0))] = csf_default
 
+    # Create the white matter mask
     wm_data[np.where(data_uint8 == white_matter_default)] = 1
     wm_data[np.where(data_uint8 == csf_default)] = 0
     wm_data[np.where(data_uint8 == 0)] = 0
@@ -200,6 +206,7 @@ def fix_roi_values_noLUT(roi_image, gm_file, white_matter_file, csf_file, prob_t
     wm_label_file = op.abspath(name + "_fixedWM.nii.gz")
     nb.save(new_wm_label_image, wm_label_file)
 
+    # Create the CSF mask
     csf_data[np.where(data_uint8 != csf_default)] = 0
     csf_data = csf_data.astype(np.uint8)
     csf_label_image = nb.Nifti1Image(
@@ -211,14 +218,20 @@ def fix_roi_values_noLUT(roi_image, gm_file, white_matter_file, csf_file, prob_t
 
     hdr = image.get_header()
 
-    unlabelled = np.where((gm_data > prob_thresh) & (data_uint8 == 0))[0]
+    # Find unlabelled GM regions and give them their own label
+    import ipdb
+    #ipdb.set_trace()
+    unlabelled = np.where((gm_data > prob_thresh) & (data_uint8 == 0))
+    print(len(gm_data[0]))
+    print(len(unlabelled[0]))
 
     # Create extra ROI if there are extra GM regions in the GM mask
-    if len(unlabelled) > 0:
+    if len(unlabelled[0]) > 0:
         highestlabel = np.max(data_uint8)
         assert(highestlabel != 255)
-        data_uint8[np.where((gm_data > 0) & (data_uint8 == 0))] = highestlabel + 1
+        data_uint8[unlabelled] = highestlabel + 1
 
+    # Write out the fixed ROIs
     fixed = nb.Nifti1Image(
         dataobj=data_uint8, affine=image.get_affine(), header=hdr)
     _, name, _ = split_filename(roi_image)
@@ -228,7 +241,7 @@ def fix_roi_values_noLUT(roi_image, gm_file, white_matter_file, csf_file, prob_t
     return fixed_roi_image, wm_label_file, csf_label_file, remap_dict
 
 
-def fix_roi_values(roi_image, gm_binary_mask, white_matter_file, csf_file, use_fs_LUT=True, prob_thresh=0.7):
+def fix_roi_values(roi_image, grey_matter_file, white_matter_file, csf_file, use_fs_LUT=True, prob_thresh=0.7):
     '''
     Changes ROI values to prevent values equal to 1, 2,
     or 3. These are reserved for GM/WM/CSF in the PVELab
@@ -236,9 +249,11 @@ def fix_roi_values(roi_image, gm_binary_mask, white_matter_file, csf_file, use_f
     '''
 
     if use_fs_LUT:
-        fixed_roi_image, wm_label_file, csf_label_file, remap_dict = fix_roi_values_freesurferLUT(roi_image, white_matter_file, csf_file, prob_thresh)
+        fixed_roi_image, wm_label_file, csf_label_file, remap_dict = fix_roi_values_freesurferLUT(
+            roi_image, white_matter_file, csf_file, prob_thresh)
     else:
-        fixed_roi_image, wm_label_file, csf_label_file, remap_dict = fix_roi_values_noLUT(roi_image, gm_binary_mask, white_matter_file, csf_file, prob_thresh)
+        fixed_roi_image, wm_label_file, csf_label_file, remap_dict = fix_roi_values_noLUT(
+            roi_image, grey_matter_file, white_matter_file, csf_file, prob_thresh)
 
     return fixed_roi_image, wm_label_file, csf_label_file, remap_dict
 
@@ -255,7 +270,6 @@ def write_config_dat(roi_file, LUT=None, remap_dict=None):
     IDs.sort()
     IDs = IDs.tolist()
 
-
     for x in xrange(4):
         if x in IDs:
             IDs.remove(x)
@@ -263,7 +277,8 @@ def write_config_dat(roi_file, LUT=None, remap_dict=None):
         r = lambda: random.randint(0, 255)
         for idx, val in enumerate(IDs):
             # e.g. 81  R_Hippocampus       008000
-            f.write("%i\tRegion%i\t%02X%02X%02X\n" % (val, idx + 1, r(), r(), r()))
+            f.write("%i\tRegion%i\t%02X%02X%02X\n" %
+                    (val, idx + 1, r(), r(), r()))
         f.close()
     else:
         for x in xrange(4):
@@ -290,7 +305,7 @@ class PartialVolumeCorrectionInputSpec(BaseInterfaceInputSpec):
     grey_matter_file = File(exists=True,
                             desc='Grey matter probability map')
     grey_matter_binary_mask = File(exists=True,
-                            desc='Hard-segmented binary grey matter mask')
+                                   desc='Hard-segmented binary grey matter mask')
     csf_file = File(exists=True,
                     desc='Cerebrospinal fluid probability map')
     roi_file = File(exists=True, mandatory=True, xor=['skip_atlas'],
@@ -376,12 +391,9 @@ class PartialVolumeCorrection(BaseInterface):
         iflogger.info("Writing to %s" % gm_path)
 
         fixed_roi_file, fixed_wm, fixed_csf, remap_dict = fix_roi_values(
-            self.inputs.roi_file, self.inputs.grey_matter_binary_mask, 
+            self.inputs.roi_file, self.inputs.grey_matter_file,
             self.inputs.white_matter_file,
             self.inputs.csf_file, self.inputs.use_fs_LUT)
-
-
-        
 
         rois_path, _ = nifti_to_analyze(fixed_roi_file)
         iflogger.info("Writing to %s" % rois_path)
@@ -433,53 +445,53 @@ class PartialVolumeCorrection(BaseInterface):
         result = mlab.run()
 
         _, foldername, _ = split_filename(self.inputs.pet_file)
-        occu_MG_img = glob.glob("pve_%s/r_volume_Occu_MG.img" % foldername)[0]
+        occu_MG_img = glob.glob("pve_f%s/r_volume_Occu_MG.img" % foldername)[0]
         analyze_to_nifti(occu_MG_img, affine=orig_affine)
         occu_meltzer_img = glob.glob(
-            "pve_%s/r_volume_Occu_Meltzer.img" % foldername)[0]
+            "pve_f%s/r_volume_Occu_Meltzer.img" % foldername)[0]
         analyze_to_nifti(occu_meltzer_img, affine=orig_affine)
-        meltzer_img = glob.glob("pve_%s/r_volume_Meltzer.img" % foldername)[0]
+        meltzer_img = glob.glob("pve_f%s/r_volume_Meltzer.img" % foldername)[0]
         analyze_to_nifti(meltzer_img, affine=orig_affine)
         MG_rousset_img = glob.glob(
-            "pve_%s/r_volume_MGRousset.img" % foldername)[0]
+            "pve_f%s/r_volume_MGRousset.img" % foldername)[0]
         analyze_to_nifti(MG_rousset_img, affine=orig_affine)
-        MGCS_img = glob.glob("pve_%s/r_volume_MGCS.img" % foldername)[0]
+        MGCS_img = glob.glob("pve_f%s/r_volume_MGCS.img" % foldername)[0]
         analyze_to_nifti(MGCS_img, affine=orig_affine)
         virtual_PET_img = glob.glob(
-            "pve_%s/r_volume_Virtual_PET.img" % foldername)[0]
+            "pve_f%s/r_volume_Virtual_PET.img" % foldername)[0]
         analyze_to_nifti(virtual_PET_img, affine=orig_affine)
         centrum_semiovalue_WM_img = glob.glob(
-            "pve_%s/r_volume_CSWMROI.img" % foldername)[0]
+            "pve_f%s/r_volume_CSWMROI.img" % foldername)[0]
         analyze_to_nifti(centrum_semiovalue_WM_img, affine=orig_affine)
         alfano_alfano_img = glob.glob(
-            "pve_%s/r_volume_AlfanoAlfano.img" % foldername)[0]
+            "pve_f%s/r_volume_AlfanoAlfano.img" % foldername)[0]
         analyze_to_nifti(alfano_alfano_img, affine=orig_affine)
-        alfano_cs_img = glob.glob("pve_%s/r_volume_AlfanoCS.img" %
+        alfano_cs_img = glob.glob("pve_f%s/r_volume_AlfanoCS.img" %
                                   foldername)[0]
         analyze_to_nifti(alfano_cs_img, affine=orig_affine)
         alfano_rousset_img = glob.glob(
-            "pve_%s/r_volume_AlfanoRousset.img" % foldername)[0]
+            "pve_f%s/r_volume_AlfanoRousset.img" % foldername)[0]
         analyze_to_nifti(alfano_rousset_img, affine=orig_affine)
-        mg_alfano_img = glob.glob("pve_%s/r_volume_MGAlfano.img" %
+        mg_alfano_img = glob.glob("pve_f%s/r_volume_MGAlfano.img" %
                                   foldername)[0]
         analyze_to_nifti(mg_alfano_img, affine=orig_affine)
-        mask_img = glob.glob("pve_%s/r_volume_Mask.img" % foldername)[0]
+        mask_img = glob.glob("pve_f%s/r_volume_Mask.img" % foldername)[0]
         analyze_to_nifti(mask_img, affine=orig_affine)
-        PSF_img = glob.glob("pve_%s/r_volume_PSF.img" % foldername)[0]
+        PSF_img = glob.glob("pve_f%s/r_volume_PSF.img" % foldername)[0]
         analyze_to_nifti(PSF_img)
 
         try:
             rousset_mat_file = glob.glob(
-                "pve_%s/r_volume_Rousset.mat" % foldername)[0]
+                "pve_f%s/r_volume_Rousset.mat" % foldername)[0]
         except IndexError:
             # On Ubuntu using pve64, the matlab file is saved with a capital M
             rousset_mat_file = glob.glob(
-                "pve_%s/r_volume_Rousset.Mat" % foldername)[0]
+                "pve_f%s/r_volume_Rousset.Mat" % foldername)[0]
 
         shutil.copyfile(rousset_mat_file, op.abspath("r_volume_Rousset.mat"))
 
         results_text_file = glob.glob(
-            "pve_%s/r_volume_pve.txt" % foldername)[0]
+            "pve_f%s/r_volume_pve.txt" % foldername)[0]
         shutil.copyfile(results_text_file, op.abspath("r_volume_pve.txt"))
 
         results_matlab_mat = op.abspath("%s_pve.mat" % foldername)
