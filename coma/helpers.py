@@ -3,11 +3,14 @@ import os.path as op
 import nibabel as nb
 import numpy as np
 from nipype.utils.filemanip import split_filename
-
+import shutil
 
 def nifti_to_analyze(nii):
-    _, name, _ = split_filename(nii)
-    os.system("dcm2nii -s y -f y -m n -g n -n n " + nii)
+    path, name, ext = split_filename(nii)
+    if (nii != op.abspath(name + ext)):
+        shutil.copyfile(nii, op.abspath(name + ext))
+    
+    os.system("dcm2nii -s y -f y -m n -g n -n n " + op.abspath(name + ext))
     return op.abspath("f" + name + '.img'), op.abspath("f" + name + '.hdr')
 
 

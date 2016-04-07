@@ -13,7 +13,16 @@ from coma.labels import dmn_labels_combined
 from coma.helpers import (add_subj_name_to_rois, rewrite_mat_for_applyxfm,
                           add_subj_name_to_cortex_sfmask, add_subj_name_to_T1_dwi, select_GM)
 from coma.interfaces.glucose import CMR_glucose, calculate_SUV, scale_PVC_matrix_fn
+from coma.interfaces import RegionalValues
 
+def add_pve_to_subjid(subject_id):
+    return subject_id + "_PVE"
+
+def add_suv_stats_to_subjid(subject_id):
+    return subject_id + "_SUV_Stats.mat"
+
+def add_suv_pve_stats_to_subjid(subject_id):
+    return subject_id + "_SUV_PVE_Stats.mat"
 
 def coreg_without_resample(name="highres_coreg"):
     inputnode = pe.Node(
@@ -327,6 +336,9 @@ def create_dmn_pipeline_step1(name="dmn_step1", scale_by_glycemia=True, manual_s
             "pet_results_npz",
             "pet_results_mat",
             "orig_pet_to_t1",
+            "SUV_pet_to_t1",
+            "SUV_ROI_stats_file",
+            "SUV_PVE_ROI_stats_file",
 
             # T1 in DWI space for
             # reference
@@ -340,22 +352,33 @@ def create_dmn_pipeline_step1(name="dmn_step1", scale_by_glycemia=True, manual_s
 
     termmask_to_dwi = t1_to_dwi.clone("termmask_to_dwi")
 
-    compute_cmr_glc_interface = util.Function(input_names=["subject_id", "in_file", "dose", "weight", "delay",
-                                                           "glycemie", "scan_time"], output_names=["out_file", "cax2", "mecalc", "denom"], function=CMR_glucose)
+    compute_cmr_glc_interface = util.Function(input_names=["subject_id", "in_file", "dose_mCi", "weight_kg", "delay_min",
+                                                           "glycemie", "scan_time_min"], output_names=["out_file", "cax2", "mecalc", "denom"], function=CMR_glucose)
     compute_AIF_PET = pe.Node(
         interface=compute_cmr_glc_interface, name='compute_AIF_PET')
 
-    compute_SUV_interface = util.Function(input_names=["subject_id", "in_file", "dose", "weight", "delay",
-                                                       "scan_time", "isotope", 'height', "glycemie"],
+    compute_SUV_interface = util.Function(input_names=["subject_id", "in_file", "dose_mCi", "weight_kg", "delay_min",
+                                                       "scan_time_min", "isotope", 'height', "glycemie"],
                                           output_names=["out_file"], function=calculate_SUV)
+
+    compute_SUV_interface2 = util.Function(input_names=["subject_id", "in_file", "dose_mCi", "weight_kg", "delay_min",
+                                                       "scan_time_min", "isotope", 'height', "glycemie"],
+                                          output_names=["out_file"], function=calculate_SUV)
+    compute_PVE_SUV_image = pe.Node(
+        interface=compute_SUV_interface, name='compute_PVE_SUV_image')
+
     compute_SUV_image = pe.Node(
-        interface=compute_SUV_interface, name='compute_SUV_image')
+        interface=compute_SUV_interface2, name='compute_SUV_image')
 
     scale_PVC_matrix_interface = util.Function(input_names=["subject_id", "in_file", "dose_mCi", "weight_kg", "delay_min",
                                                             "scan_time_min", "isotope", "glycemie"],
                                                output_names=["out_npz", "out_matlab_mat"], function=scale_PVC_matrix_fn)
     scale_PVC_matrix = pe.Node(
         interface=scale_PVC_matrix_interface, name='scale_PVC_matrix')
+
+
+    SUV_ROI_values = pe.Node(interface=RegionalValues(), name='SUV_ROI_values')
+    SUV_PVE_ROI_values = pe.Node(interface=RegionalValues(), name='SUV_PVE_ROI_values')
 
     single_fiber_mask_cortex_only = pe.Node(
         interface=fsl.MultiImageMaths(), name='single_fiber_mask_cortex_only')
@@ -405,30 +428,42 @@ def create_dmn_pipeline_step1(name="dmn_step1", scale_by_glycemia=True, manual_s
     workflow.connect(
         [(dtiproc, termmask_to_dwi, [("outputnode.fa", "reference")])])
 
-    workflow.connect([(inputnode, single_fiber_mask_cortex_only, [
-                     (('subject_id', add_subj_name_to_cortex_sfmask), 'out_file')])])
+    workflow.connect([(inputnode, single_fiber_mask_cortex_only, [(('subject_id', add_subj_name_to_cortex_sfmask), 'out_file')])])
     workflow.connect(
         [(termmask_to_dwi, single_fiber_mask_cortex_only, [("out_file", "operand_files")])])
     workflow.connect([(dtiproc, single_fiber_mask_cortex_only, [
                      ("outputnode.single_fiber_mask", "in_file")])])
 
     workflow.connect([(inputnode, compute_SUV_image, [("subject_id", "subject_id"),
-                                                              ("dose", "dose"),
+                                                              ("dose", "dose_mCi"),
                                                               ("weight",
-                                                               "weight"),
+                                                               "weight_kg"),
                                                               ("delay",
-                                                               "delay"),
+                                                               "delay_min"),
                                                               ("scan_time",
-                                                               "scan_time"),
+                                                               "scan_time_min"),
+                                                              ])])
+
+    workflow.connect([(petquant, compute_SUV_image, [("outputnode.orig_pet_to_t1", "in_file")])])
+
+    workflow.connect([(inputnode, compute_PVE_SUV_image, [(('subject_id', add_pve_to_subjid), 'subject_id')])])
+
+    workflow.connect([(inputnode, compute_PVE_SUV_image, [("dose", "dose_mCi"),
+                                                              ("weight",
+                                                               "weight_kg"),
+                                                              ("delay",
+                                                               "delay_min"),
+                                                              ("scan_time",
+                                                               "scan_time_min"),
                                                               ])])
 
     # This is for the arterial input function approximation for the FDG uptake
     workflow.connect([(inputnode, compute_AIF_PET, [("subject_id", "subject_id"),
-                                                    ("dose", "dose"),
-                                                    ("weight", "weight"),
-                                                    ("delay", "delay"),
+                                                    ("dose", "dose_mCi"),
+                                                    ("weight", "weight_kg"),
+                                                    ("delay", "delay_min"),
                                                     ("glycemie", "glycemie"),
-                                                    ("scan_time", "scan_time"),
+                                                    ("scan_time", "scan_time_min"),
                                                     ])])
 
     workflow.connect([(inputnode, scale_PVC_matrix, [("subject_id", "subject_id"),
@@ -465,10 +500,20 @@ def create_dmn_pipeline_step1(name="dmn_step1", scale_by_glycemia=True, manual_s
 
     workflow.connect(
         [(petquant, compute_AIF_PET, [("outputnode.corrected_pet_to_t1", "in_file")])])
-    workflow.connect([(petquant, compute_SUV_image,
+    workflow.connect([(petquant, compute_PVE_SUV_image,
                        [("outputnode.corrected_pet_to_t1", "in_file")])])
     workflow.connect(
         [(petquant, scale_PVC_matrix, [("outputnode.pet_results_npz", "in_file")])])
+
+
+    # RegionalValues
+    workflow.connect([(inputnode, SUV_ROI_values, [(('subject_id', add_suv_stats_to_subjid), 'out_stats_file')])])
+    workflow.connect([(reg_label, SUV_ROI_values, [("outputnode.rois", "segmentation_file")])])
+    workflow.connect([(compute_SUV_image, SUV_ROI_values, [("out_file", "in_files")])])
+
+    workflow.connect([(inputnode, SUV_PVE_ROI_values, [(('subject_id', add_suv_pve_stats_to_subjid), 'out_stats_file')])])
+    workflow.connect([(reg_label, SUV_PVE_ROI_values, [("outputnode.rois", "segmentation_file")])])
+    workflow.connect([(compute_PVE_SUV_image, SUV_PVE_ROI_values, [("out_file", "in_files")])])
 
     '''
     Connect outputnode
@@ -518,13 +563,19 @@ def create_dmn_pipeline_step1(name="dmn_step1", scale_by_glycemia=True, manual_s
     workflow.connect(
         [(compute_AIF_PET, outputnode, [("out_file", "AIF_corrected_pet_to_t1")])])
     workflow.connect(
-        [(compute_SUV_image, outputnode, [("out_file", "SUV_corrected_pet_to_t1")])])
+        [(compute_PVE_SUV_image, outputnode, [("out_file", "SUV_corrected_pet_to_t1")])])
+    workflow.connect(
+        [(compute_SUV_image, outputnode, [("out_file", "SUV_pet_to_t1")])])
     workflow.connect(
         [(petquant, outputnode, [("outputnode.orig_pet_to_t1", "orig_pet_to_t1")])])
     workflow.connect(
         [(scale_PVC_matrix, outputnode, [("out_npz", "pet_results_npz")])])
     workflow.connect(
         [(scale_PVC_matrix, outputnode, [("out_matlab_mat", "pet_results_mat")])])
+
+    workflow.connect([(SUV_ROI_values, outputnode, [("stats_file", "SUV_ROI_stats_file")])])
+    workflow.connect([(SUV_PVE_ROI_values, outputnode, [("stats_file", "SUV_PVE_ROI_stats_file")])])
+
     workflow.connect([(single_fiber_mask_cortex_only, outputnode, [
                      ("out_file", "single_fiber_mask_cortex_only")])])
     return workflow
