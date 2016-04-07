@@ -175,7 +175,7 @@ def create_freesurfer_pet_quantification_wf(name="fspetquant"):
          (pve_correction,        outputnode, [("results_matlab_mat", "pet_results_mat")]),
          (applyxfm_CorrectedPET, outputnode, [("out_file", "corrected_pet_to_t1")]),
          (coregister,            outputnode, [("out_file", "pet_to_t1")]),
-         (coregister,            outputnode, [("out_matrix_mat_file", "pet_to_t1_xform")]),
+         (coregister,            outputnode, [("out_matrix_file", "pet_to_t1_xform")]),
          (mri_convert_T1,        outputnode, [("out_file", "T1")]),
          (mri_convert_ROIs,      outputnode, [("out_file", "ROIs")]),
          (mri_convert_Brain,     outputnode, [("out_file", "brain")]),
