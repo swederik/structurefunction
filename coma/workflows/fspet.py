@@ -1,3 +1,4 @@
+import os
 import nipype.interfaces.io as nio           # Data i/o
 import nipype.interfaces.utility as util     # utility
 import nipype.pipeline.engine as pe          # pypeline engine
@@ -9,6 +10,9 @@ from ..helpers import select_CSF, select_WM, select_GM
 from coma.interfaces.glucose import calculate_SUV
 
 fsl.FSLCommand.set_default_output_type('NIFTI_GZ')
+
+freesurfer_dir = os.environ['FREESURFER_HOME']
+fs_lut = os.path.join(freesurfer_dir, 'FreeSurferColorLUT.txt')
 
 def add_pet_stats_to_subjid(subject_id):
     return subject_id + "_PET_Stats.mat"
@@ -65,7 +69,9 @@ def create_freesurfer_pet_quantification_wf(name="fspetquant"):
     pve_correction.inputs.use_fs_LUT = True
 
     PET_ROI_values = pe.Node(interface=ci.RegionalValues(), name='PET_ROI_values')
+    PET_ROI_values.inputs.lookup_table = fs_lut
     PET_PVE_ROI_values = pe.Node(interface=ci.RegionalValues(), name='PET_PVE_ROI_values')
+    PET_PVE_ROI_values.inputs.lookup_table = fs_lut
 
     workflow = pe.Workflow(name=name)
     workflow.base_output_dir = name
@@ -157,7 +163,7 @@ def create_freesurfer_pet_quantification_wf(name="fspetquant"):
 
     output_fields = ["out_files", "pet_to_t1", "corrected_pet_to_t1", "pet_results_npz",
                      "pet_results_mat", "PET_stats_file", "PET_PVE_stats_file",
-                     "T1", "ROIs", "brain"]
+                     "T1", "ROIs", "brain", "pet_to_t1_xform"]
 
     outputnode = pe.Node(
         interface=util.IdentityInterface(fields=output_fields),
@@ -169,6 +175,7 @@ def create_freesurfer_pet_quantification_wf(name="fspetquant"):
          (pve_correction,        outputnode, [("results_matlab_mat", "pet_results_mat")]),
          (applyxfm_CorrectedPET, outputnode, [("out_file", "corrected_pet_to_t1")]),
          (coregister,            outputnode, [("out_file", "pet_to_t1")]),
+         (coregister,            outputnode, [("out_matrix_mat_file", "pet_to_t1_xform")]),
          (mri_convert_T1,        outputnode, [("out_file", "T1")]),
          (mri_convert_ROIs,      outputnode, [("out_file", "ROIs")]),
          (mri_convert_Brain,     outputnode, [("out_file", "brain")]),
