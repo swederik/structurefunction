@@ -14,7 +14,8 @@ data_path = sample.data_path()
 subjects_dir = op.join(data_path,"subjects")
 output_dir = op.abspath('example_fspet')
 
-info = dict(fdg_pet_image=[['subject_id','petmr']])
+info = dict(fdg_pet_image=[['subject_id','test4D']])
+#info = dict(fdg_pet_image=[['subject_id','petmr']])
 
 subject_list = ['Bend1']
 
@@ -28,6 +29,7 @@ datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
 datasource.inputs.template = "%s/%s"
 datasource.inputs.base_directory = data_path
 datasource.inputs.field_template = dict(fdg_pet_image='data/%s/%s.nii.gz')
+
 datasource.inputs.template_args = info
 datasource.inputs.sort_filelist = True
 
@@ -46,9 +48,16 @@ workflow.connect([(infosource, datasource,[('subject_id', 'subject_id')])])
 workflow.connect([(infosource, fspet,[('subject_id', 'inputnode.subject_id')])])
 workflow.connect([(datasource, fspet,[('fdg_pet_image', 'inputnode.pet')])])
 
-workflow.connect([(fspet, datasink, [("outputnode.out_files", "@subject_id.out_files"),
-                                     ("outputnode.corrected_pet_to_t1", "@subject_id.corrected_pet_to_t1"),
-                                     ("outputnode.pet_results_npz", "@subject_id.pet_results_npz"),
+workflow.connect([(fspet, datasink, [("outputnode.out_files", "Results.@out_files"),
+                                     ("outputnode.corrected_pet_to_t1", "Results.@corrected_pet_to_t1"),
+                                     ("outputnode.pet_results_npz", "Results.@pet_results_npz"),
+                                     ("outputnode.pet_results_mat", "Results.@pet_results_mat"),
+                                     ("outputnode.T1", "Results.@T1"),
+                                     ("outputnode.ROIs", "Results.@ROIs"),
+                                     ("outputnode.brain", "Results.@brain"),
+                                     ("outputnode.pet_to_t1", "Results.@pet_to_t1"),
+                                     ("outputnode.PET_stats_file", "Results.@PET_stats_file"),
+                                     ("outputnode.PET_PVE_stats_file", "Results.@PET_PVE_stats_file"),
                                           ])])
 
 workflow.connect([(infosource, datasink,[('subject_id','@subject_id')])])

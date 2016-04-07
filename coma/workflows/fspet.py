@@ -6,8 +6,15 @@ import nipype.interfaces.freesurfer as fs
 import coma.interfaces as ci
 from nipype.workflows.misc.utils import select_aparc
 from ..helpers import select_CSF, select_WM, select_GM
+from coma.interfaces.glucose import calculate_SUV
 
 fsl.FSLCommand.set_default_output_type('NIFTI_GZ')
+
+def add_pet_stats_to_subjid(subject_id):
+    return subject_id + "_PET_Stats.mat"
+
+def add_pet_pve_stats_to_subjid(subject_id):
+    return subject_id + "_PET_PVE_Stats.mat"
 
 def create_freesurfer_pet_quantification_wf(name="fspetquant"):
     inputnode = pe.Node(
@@ -56,6 +63,9 @@ def create_freesurfer_pet_quantification_wf(name="fspetquant"):
     pve_correction = pe.Node(interface=ci.PartialVolumeCorrection(), name = 'pve_correction')
     pve_correction.inputs.skip_atlas = False
     pve_correction.inputs.use_fs_LUT = True
+
+    PET_ROI_values = pe.Node(interface=ci.RegionalValues(), name='PET_ROI_values')
+    PET_PVE_ROI_values = pe.Node(interface=ci.RegionalValues(), name='PET_PVE_ROI_values')
 
     workflow = pe.Workflow(name=name)
     workflow.base_output_dir = name
@@ -135,8 +145,19 @@ def create_freesurfer_pet_quantification_wf(name="fspetquant"):
     workflow.connect(
         [(coregister, applyxfm_CorrectedPET, [('out_matrix_file', 'in_matrix_file')])])
 
+
+    # RegionalValues
+    workflow.connect([(inputnode, PET_ROI_values, [(('subject_id', add_pet_stats_to_subjid), 'out_stats_file')])])
+    workflow.connect([(mri_convert_ROIs, PET_ROI_values, [("out_file", "segmentation_file")])])
+    workflow.connect([(coregister, PET_ROI_values, [("out_file", "in_files")])])
+
+    workflow.connect([(inputnode, PET_PVE_ROI_values, [(('subject_id', add_pet_pve_stats_to_subjid), 'out_stats_file')])])
+    workflow.connect([(mri_convert_ROIs, PET_PVE_ROI_values, [("out_file", "segmentation_file")])])
+    workflow.connect([(applyxfm_CorrectedPET, PET_PVE_ROI_values, [("out_file", "in_files")])])
+
     output_fields = ["out_files", "pet_to_t1", "corrected_pet_to_t1", "pet_results_npz",
-                     "pet_results_mat"]
+                     "pet_results_mat", "PET_stats_file", "PET_PVE_stats_file",
+                     "T1", "ROIs", "brain"]
 
     outputnode = pe.Node(
         interface=util.IdentityInterface(fields=output_fields),
@@ -148,6 +169,11 @@ def create_freesurfer_pet_quantification_wf(name="fspetquant"):
          (pve_correction,        outputnode, [("results_matlab_mat", "pet_results_mat")]),
          (applyxfm_CorrectedPET, outputnode, [("out_file", "corrected_pet_to_t1")]),
          (coregister,            outputnode, [("out_file", "pet_to_t1")]),
+         (mri_convert_T1,        outputnode, [("out_file", "T1")]),
+         (mri_convert_ROIs,      outputnode, [("out_file", "ROIs")]),
+         (mri_convert_Brain,     outputnode, [("out_file", "brain")]),
+         (PET_ROI_values,        outputnode, [("stats_file", "PET_stats_file")]),
+         (PET_PVE_ROI_values,    outputnode, [("stats_file", "PET_PVE_stats_file")]),         
          ])
 
     return workflow

@@ -442,6 +442,7 @@ class PartialVolumeCorrection(BaseInterface):
         """).substitute(d)
         mlab = MatlabCommand(script=script, mfile=True,
                              prescript=[''], postscript=[''])
+
         result = mlab.run()
 
         _, foldername, _ = split_filename(self.inputs.pet_file)
